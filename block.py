@@ -26,9 +26,9 @@ class Block:
         for x in range(r):
             for y in range(c):
                 if shape[x][y] == 1:
-                    res += 'X'
+                    res += '■ '
                 else:
-                    res += '.'
+                    res += '. '
             res += '\n'
         return res
 
