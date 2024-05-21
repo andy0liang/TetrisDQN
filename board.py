@@ -1,5 +1,7 @@
 import numpy as np
 import random
+import torch
+import torch.nn.functional as F
 from block import Block
 
 ILLEGAL_MOVE_REWARD = -5000
@@ -31,6 +33,16 @@ class Board:
             count += 1
         self.rowsCleared += count
         self.score += CLEAR_ROW_SCORES[count]
+
+    def getLegalMoves(self):
+        # (swap, rotate, drop, column)
+        legals = [(0, 1, 0, 0)]
+        if self.canSwap:
+            legals.append((1, 0, 0, 0))
+        for column in range(-3, 10):
+            if self.isLegalMove(0, column):
+                legals.append((0, 0, 1, column))
+        return legals
 
     def _clearRow(self):
         self.matrix = np.vstack([np.zeros(self.matrix.shape[1]), self.matrix[:-1]])
@@ -153,3 +165,51 @@ class Board:
         res += f'Current level: {self.rowsCleared // 10 + 1}\n'
         res += "=================================\n"
         return res
+    
+    def getState(self):
+        '''
+        Tuple {
+            matrix: np.ndarray
+            currentBlock: one-hot
+            currentBlockRotation: one-hot
+            heldBlock: one-hot
+            nextBlock: one-hot 
+            canSwap: boolean (0 or 1)
+        }, length = 20*10 + 7 + 4 + 8 + 7 + 1 = 223
+        '''
+
+        flattenedMatrix = torch.tensor(self.matrix.flatten())
+
+        currentBlockOneHot = torch.zeros(Block.NUM_SHAPES)
+        currentBlockOneHot[self.currentBlock.block_id] = 1
+
+        currentBlockRotationOneHot = torch.zeros(4)
+        currentBlockRotationOneHot[self.currentBlock.rotation] = 1
+
+        heldBlockOneHot = torch.zeros(Block.NUM_SHAPES + 1)
+        if self.heldBlock is not None:
+            heldBlockOneHot[self.heldBlock.block_id] = 1
+        else:
+            heldBlockOneHot[-1] = 1
+        
+        nextBlockOneHot = torch.zeros(Block.NUM_SHAPES)
+        nextBlockOneHot[self.blockQueue[-1].block_id] = 1
+        
+        canSwapOneHot = torch.zeros(1)
+        if self.canSwap:
+            canSwapOneHot[0] = 1
+
+        tensors_to_cat = [
+            flattenedMatrix, 
+            currentBlockOneHot, 
+            currentBlockRotationOneHot, 
+            heldBlockOneHot,
+            nextBlockOneHot,
+            canSwapOneHot
+            ]
+
+        return torch.cat(tensors_to_cat)
+        
+
+
+
